@@ -49,15 +49,9 @@ export function getUserProfile () {
       return
     }
 
-    let username = user.username
-    username = '\\' + username
-
     const themeKey = config.get<string>('application.theme') as keyof typeof themes
     const theme = themes[themeKey] || themes['bluegrey-lightgreen']
 
-    if (username) {
-      template = template.replace(/_username_/g, username)
-    }
     template = template.replace(/_emailHash_/g, security.hash(user?.email))
     template = template.replace(/_title_/g, entities.encode(config.get<string>('application.name')))
     template = template.replace(/_favicon_/g, favicon())
@@ -74,14 +68,19 @@ export function getUserProfile () {
       const CSP = `img-src 'self' ${user?.profileImage}; script-src 'self' 'unsafe-eval'`
 
       challengeUtils.solveIf(challenges.usernameXssChallenge, () => {
-        return username && user?.profileImage.match(/;[ ]*script-src(.)*'unsafe-inline'/g) !== null && utils.contains(username, '<script>alert(`xss`)</script>')
+        return user?.profileImage.match(/;[ ]*script-src(.)*'unsafe-inline'/g) !== null && utils.contains(user.username, '<script>alert(`xss`)</script>')
       })
 
       res.set({
         'Content-Security-Policy': CSP
       })
 
-      res.send(fn(user))
+      let compiledTemplate = fn(user)
+      if (user.username) {
+        compiledTemplate = compiledTemplate.replace(/_username_/g, user.username)
+      }
+
+      res.send(compiledTemplate)
     } catch (err) {
       next(new Error('Blocked illegal activity by ' + req.socket.remoteAddress))
     }
